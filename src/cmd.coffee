@@ -1,8 +1,14 @@
-# Starfruit - Command Line
+#
+#       _/_/_/    _/                              _/_/                      _/    _/      
+#    _/        _/_/_/_/    _/_/_/  _/  _/_/    _/      _/  _/_/  _/    _/      _/_/_/_/   
+#     _/_/      _/      _/    _/  _/_/      _/_/_/_/  _/_/      _/    _/  _/    _/        
+#        _/    _/      _/    _/  _/          _/      _/        _/    _/  _/    _/         
+# _/_/_/        _/_/    _/_/_/  _/          _/      _/          _/_/_/  _/      _/_/      
 #
 # MIT Licensed
-#
 # Copyright (c) 2014 Kan Kung-Yip
+#
+# Command Line Tool
 
 # Module dependencies
 fs = require 'fs'
@@ -23,9 +29,19 @@ style =
   error: (str) -> '\x1b[31m' + str + '\x1b[0m'
   warning: (str) -> '\x1b[33m' + str + '\x1b[0m'
   over: (str) -> '\x1b[36m' + str + '\x1b[0m'
+  cmd: (str) -> '\x1b[32m' + str + '\x1b[0m'
 
 # cpus
 MAX_CPUS = os.cpus().length
+
+# welcome
+WELCOME = '\x1b[0;0H\x1b[K\x1b[J
+\n                        _  
+\n    __ _|_   __   __  _|_  __        o _|_
+\n  __)   |_, (__( |  \'  |  |  \' (__(_ |  |_,
+\n   
+\n
+'
 
 # helps
 USAGE_HELP = '\x1b[1mPilot [0.0.1]\x1b[0m
@@ -155,7 +171,8 @@ list = ->
   console.log message + '\n'
 
 # Add server process
-add = (env, cpus = 1) ->
+add = (env, cpus) ->
+  if cpus? then cpus = parseInt cpus else cpus = 1
   num = (pid for pid of workers).length
   if num < MAX_CPUS
     if cpus > MAX_CPUS - num
@@ -166,16 +183,16 @@ add = (env, cpus = 1) ->
     while cpus > 0
       start env
       cpus--
-    return console.log (if num > 1 then '%s processes are running' else '%s process is running'), style.int num
-  console.log 'Max running %s processes\nUse \'list\' command look all processes', style.int MAX_CPUS
+    return console.log (if num > 1 then '%s processes are running\n' else '%s process is running\n'), style.int num
+  console.log 'Max running %s processes, use %s command look all processes\n', style.int(MAX_CPUS), style.cmd('list')
 
 # Remove worker by pid of process
 remove = (pid) ->
-  return console.log 'Usage: remove <pid>' unless pid
-  return console.error style.error('Not found pid ' + pid) unless workers.hasOwnProperty pid
+  return console.log 'Usage: %s <pid>\n', style.cmd 'remove' unless pid
+  return console.error '%s\n', style.error 'Not found pid ' + pid unless workers.hasOwnProperty pid
   #workers[pid].auto = false
   workers[pid].process.kill 'SIGKILL'
-  console.log 'Process %s shutdown', style.int pid
+  console.log 'Process %s shutdown\n', style.int pid
 
 # Restart all process
 restart = ->
@@ -185,11 +202,11 @@ restart = ->
 quit = (resolve) ->
   switch resolve
     when 'yes', 'y' then shutdown 'Bye!'
-    when 'no', 'n' then return [null, '']
+    when 'no', 'n' then console.log ''; return [null, '']
     else return ['quit', style.warning 'ARE YOU SURE? (yes|y|no|n)']
 
 # Welcome screen
-process.stdout.write '\x1b[0;0H\x1b[K\x1b[J'
+process.stdout.write WELCOME
 
 # Getting user options
 argv = process.argv.slice 2
@@ -225,7 +242,7 @@ do repl = (message = '', confirm = null) ->
     # command action
     shell.confirm = false
     switch command
-      when 'add' then add env, parseInt argv[0]
+      when 'add' then add env, argv[0]
       when 'clear', 'cls' then process.stdout.write '\x1b[0;0H\x1b[K\x1b[J'
       when 'help', '?' then help SHELL_HELP
       when 'list', 'ls' then list()
@@ -233,5 +250,5 @@ do repl = (message = '', confirm = null) ->
       when 'restart' then restart()
       when 'quit', 'exit' then [confirm, message] = quit resolve
       # error command
-      else console.error style.error command + ': command not found' if command.length > 0
+      else console.error style.error command + ': command not found\n' if command.length > 0
     repl message, confirm
