@@ -1,0 +1,26 @@
+{
+  "name": "starfruit",
+  "version": "0.1.0",
+  "description": "A compact and intelligent web application framework for Node.js.",
+  "main": "./lib",
+  "bin": {
+    "starfruit": "./bin/starfruit",
+    "sf": "./bin/starfruit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kankungyip/starfruit.git"
+  },
+  "keywords": [
+    "starfruit",
+    "web",
+    "application",
+    "framework"
+  ],
+  "author": "Kan Kung-Yip <kan@kungyip.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/kankungyip/starfruit/issues"
+  },
+  "homepage": "https://github.com/kankungyip/starfruit"
+}
