@@ -1,11 +1,16 @@
-# Starfruit
+#
+#       _/_/_/    _/                              _/_/                      _/    _/      
+#    _/        _/_/_/_/    _/_/_/  _/  _/_/    _/      _/  _/_/  _/    _/      _/_/_/_/   
+#     _/_/      _/      _/    _/  _/_/      _/_/_/_/  _/_/      _/    _/  _/    _/        
+#        _/    _/      _/    _/  _/          _/      _/        _/    _/  _/    _/         
+# _/_/_/        _/_/    _/_/_/  _/          _/      _/          _/_/_/  _/      _/_/      
 #
 # MIT Licensed
-#
 # Copyright (c) 2014 Kan Kung-Yip
 
 # Module dependencies
 Server = require './server'
+Controller = require './controller'
 
 # Create a new connect server
 createServer = ->
@@ -13,12 +18,16 @@ createServer = ->
     app.respond req, res  
   app[key] = value for key, value of Server
   app.timeout = 30 # response timeout
+  app.dynamic = 'lib' # dynamic contents folder
   app.static = 'pub' # static contents folder
   app.index = 'index.html' # default index file
   return app
 
 # Expose createServer() as the module
 module.exports = createServer
+
+# Expose the pilot
+module.exports.Controller = Controller
 
 # Logging a message
 log = (format) ->
