@@ -9,6 +9,8 @@
 ```
 A compact and intelligent web application framework for Node.js.
 
+[中文介绍](https://github.com/kankungyip/starfruit/wiki/%E4%BB%8B%E7%BB%8D).
+
 ## Installation
 ```
 $ sudo npm install -g starfruit
@@ -83,8 +85,8 @@ Use ```_<status code>.html``` file to customize the server status code page, suc
 
 ### Command line tool
 * ```$ cd MyProject```
-* Boot server ```$ starfruit``` or ```$ sf```
-* Add 2 server process ```add 2```
+* Boot server(enter real-time command line tool) ```$ starfruit``` or ```$ sf```
+* Add server process(maximum number of processes CPU cores) ```add <num>```
 * List all server processes ```list``` or ```ls```
 * List all internal errors ```error``` or ```err```
 * Check a error ```error <id>``` or ```err <id>```
@@ -94,9 +96,14 @@ Use ```_<status code>.html``` file to customize the server status code page, suc
 
 ## Histroy
 ### 0.1.9
+Added:
+
 + Dynamic controller
 + Error messages pool
 + Check error command
+
+Fixed:
+
 * Fixed command line tool bugs
 
 ### 0.1.0
@@ -105,3 +112,5 @@ Use ```_<status code>.html``` file to customize the server status code page, suc
 
 ## License
 See [LICENSE](https://github.com/kankungyip/starfruit/blob/master/LICENSE).
+
+Copyright (c) 2014 [Kan Kung-Yip](mailto:kan@kungyip.com)
