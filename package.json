@@ -1,6 +1,6 @@
 {
   "name": "starfruit",
-  "version": "0.1.0",
+  "version": "0.1.9",
   "description": "A compact and intelligent web application framework for Node.js.",
   "main": "./lib",
   "bin": {
