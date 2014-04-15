@@ -1,6 +1,6 @@
 {
   "name": "starfruit",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "description": "A compact and intelligent web application framework for Node.js.",
   "main": "./lib",
   "bin": {
@@ -15,7 +15,8 @@
     "starfruit",
     "web",
     "application",
-    "framework"
+    "framework",
+    "coffeescript"
   ],
   "author": "Kan Kung-Yip <kan@kungyip.com>",
   "license": "MIT",
