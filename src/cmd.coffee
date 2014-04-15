@@ -70,9 +70,11 @@ USAGE_HELP = '\x1b[1mStarfruit\x1b[0m
 \n    add [<cpus>]              add a server process, each process uses a cpu
 \n                              core, default add 1 process
 \n    clear                     clear screen
-\n    error [[-]<id>]           list all internal errors, check error
+\n    error [[-]<id>] [+<max>]  list all internal errors, check error
 \n                              information by error id or delete error by
 \n                              error id
+\n                              +<max> to set the max number of error log,
+\n                              default max number is 20
 \n    help                      commands help infomation
 \n    list                      list all server processes
 \n    remove <pid>              shutdown a server process by process id
@@ -107,6 +109,7 @@ SHELL_HELP = '\x1b[1mStarfruit\x1b[0m
 workers = {}
 
 # Store all errors
+MAX_ERRS = 10
 errors = { index: 0 }
 
 # Show help infomations.
@@ -115,9 +118,17 @@ help = (info) -> process.stdout.write info
 # Start a server process
 start = (env) ->
   worker = cluster.fork "NODE_ENV": env
+  # error record
   worker.on 'message', (err) ->
+    index = 0
+    length = 0
+    for key of errors
+      length++
+      index = key if (key isnt 'index') and (index is 0)
+    delete errors[index] if length > MAX_ERRS
     errors.index++
     errors[errors.index] = err
+  # start process
   pid = worker.process.pid
   date = new Date()
   year = date.getFullYear()
@@ -232,8 +243,21 @@ restart = ->
 
 # Dispaly error infomation
 error = (ids) ->
-  # select a error
   if ids.length > 0
+    max = ids[0]
+    # max number of error log
+    if max.indexOf('+') is 0
+      max = parseInt max.substr 1
+      max = 20 if isNaN max
+      # delete overflow
+      length = (index for index of errors).length - 1
+      for key of errors
+        if (key isnt 'index') and (length > max)
+          delete errors[key]
+          length--
+      MAX_ERRS = max
+      return console.log 'Record up to %s errors\n', style.int max
+    # select error by id
     for id in ids
       fixed = false
       if id.indexOf('-') is 0
