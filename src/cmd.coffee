@@ -45,11 +45,11 @@ WELCOME = '\x1b[0;0H\x1b[K\x1b[J
 \n'
 
 # helps
-USAGE_HELP = '\x1b[1mPilot\x1b[0m
+USAGE_HELP = '\x1b[1mStarfruit\x1b[0m
 \nCopyright (c) 2014 Kan Kung-Yip.
 \n
-\nUsage: pilot [environment] [-c <cpus>] [-s <dir>] [-o|d <dir>] [-l <lang>]
-\n       pilot help
+\nUsage: starfruit [environment] [-c <cpus>] [-s <dir>] [-o|d <dir>] [-l <lang>]
+\n       starfruit help
 \n
 \n  Environments:
 \n    development, debug        debug, default environment
@@ -76,16 +76,16 @@ USAGE_HELP = '\x1b[1mPilot\x1b[0m
 \n    help                      commands help infomation
 \n    list                      list all server processes
 \n    remove <pid>              shutdown a server process by process id
-\n    quit                      quit pilot shell and shutdown all server
+\n    quit                      quit starfruit shell and shutdown all server
 \n                              processes
 \n
 \n  Examples:
-\n    pilot production -c 2
-\n    pilot -c 2 -l coffeescript
+\n    starfruit production -c 2
+\n    starfruit -c 2 -l coffeescript
 \n
 \nDocumentation can be found at https://github.com/davedelong/starfruit/wiki'
 
-SHELL_HELP = '\x1b[1mPilot\x1b[0m
+SHELL_HELP = '\x1b[1mStarfruit\x1b[0m
 \nCopyright (c) 2014 Kan Kung-Yip.
 \n
 \nCommands:
@@ -98,7 +98,7 @@ SHELL_HELP = '\x1b[1mPilot\x1b[0m
 \n  help                      commands help infomation
 \n  list                      list all server processes
 \n  remove <pid>              shutdown a server process by process id
-\n  quit                      quit pilot shell and shutdown all server
+\n  quit                      quit starfruit shell and shutdown all server
 \n                            processes
 \n
 \n'
@@ -107,11 +107,10 @@ SHELL_HELP = '\x1b[1mPilot\x1b[0m
 workers = {}
 
 # Store all errors
-errors = { index: 0}
+errors = { index: 0 }
 
 # Show help infomations.
-help = (info) ->
-  process.stdout.write info
+help = (info) -> process.stdout.write info
 
 # Start a server process
 start = (env) ->
@@ -164,9 +163,9 @@ boot = (env, argv) ->
     fs.mkdirSync lib unless fs.existsSync lib
     options = ['-w', '-c', '-b', '-o']
     options = options.concat [dynamic, source]
-    app = spawn 'coffee', options
-    app.stderr.pipe process.stderr
-    app.stdout.pipe process.stdout
+    shell = spawn 'coffee', options
+    shell.stderr.pipe process.stderr
+    shell.stdout.pipe process.stdout
 
   # watch dynamic contents folder
   (fs.watch lib, -> restart env, cpus) if fs.existsSync lib
@@ -180,7 +179,7 @@ boot = (env, argv) ->
   filename = path.join basedir, 'index.js'
   unless fs.existsSync filename
     console.error style.error 'Can not found index.js file in ' + basedir
-    process.exit 0
+    process.exit 1
   cluster.setupMaster exec: filename
   # running server process
   add env, cpus
@@ -257,26 +256,28 @@ error = (ids) ->
         \n  %s
         \n   %s %s
         \n  %s
-        \n   %s: %s
+        \n   %s - %s
         \n  %s
-        \n   method:  %s
-        \n   url:     %s
+        \n   method:       %s
+        \n   url:          %s
         \n  %s
-        \n   file:    %s
-        \n   charset: %s
+        \n   file:         %s
+        \n   status code:  %s
+        \n   elapsed time: %sms
         ',
           style.header('                          error id '),
           style.int id
           style.header('                              time '),
           err.date, err.time,
           style.header('                           message '),
-          err.title, style.error(err.message)
+          err.title, err.message,
           style.header('                    client request '),
           style.tag(req.method),
           req.url,
           style.header('                   server response '),
-          res.file
-          res.charset
+          res.file,
+          res.statusCode,
+          res.elapsedTime
     console.log '' # blank line
 
   # list all errors
@@ -291,7 +292,7 @@ error = (ids) ->
     message = style.over '\n\tNo error' if message.length is 0
     console.log util.format '\n  %s%s\n', style.header('\tERRORS                            '), message
 
-# Quit pilot shell
+# Quit starfruit shell
 quit = (resolve) ->
   switch resolve
     when 'yes', 'y' then shutdown 'Bye!'
@@ -310,7 +311,7 @@ switch env
   when 'help', '?' then shutdown USAGE_HELP
   when 'production', 'development' then boot env, argv
 
-# Build a pilot shell
+# Build a starfruit shell
 shell = readline.createInterface
   input: process.stdin
   output: process.stdout
@@ -320,7 +321,7 @@ shell.on 'SIGINT', ->
   shell.confirm = true
   console.log style.warning 'Press Control-C again to exit'
 
-# Running pilot shell
+# Running starfruit shell
 do repl = (message = '', confirm = null) ->
   shell.question message, (answer) ->
     # split comand and argv

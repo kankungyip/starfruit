@@ -31,9 +31,13 @@ style =
 # prototype
 module.exports = class Server
 
-  # Handle the error
+  # Catch the error
   @error: (callback) ->
-    @_error = callback if typeof callback is 'function'
+    if typeof callback isnt 'function'
+      msg = typeof(callback) + ' is not a function'
+      err = new TypeError msg
+      throw err
+    @_error = callback
 
   # Getting or setting server response content type
   @contentType: (extname, type) ->
@@ -46,9 +50,43 @@ module.exports = class Server
       ".jpg": "image/jpeg",
       ".png": "image/png",
       ".gif": "image/gif"
-    @_types[extname] = type if typeof type is 'string'
-    @_types[extname] if @_types.hasOwnProperty extname
+    return @_types[extname] = type if typeof type is 'string'
+    return @_types[extname] if typeof @_types[extname] is 'string'
     return 'text/plain'
+
+  # Listening for server
+  @listen: ->
+    server = http.createServer @
+    server.listen.apply server, arguments
+
+  # Message logger
+  @log: (arg1, arg2) ->
+    if @_logFile or env isnt 'production'
+      # formator for message
+      @_logFormat ?= (req, res) ->
+        util.format '%s %s %s ' + style.over('(%sms)'),
+          style.tag(req.method),
+          req.url,
+          style.int(res.statusCode),
+          res.elapsedTime
+      # setting log file
+      return @_logFile = arg1 if arg1 instanceof Writable
+      # setting log event
+      arg2 = arg1 if typeof arg1 is 'function'
+      return @_logFormat = arg2 if typeof arg2 is 'function'
+      # format string
+      msg = util.format.apply(util, arguments) + '\n' if typeof arg1 is 'string'
+      # format request object
+      if arg1 instanceof http.IncomingMessage and arg2 instanceof http.ServerResponse
+        msg = @_logFormat arg1, arg2
+      # error is not string
+      return if typeof msg isnt 'string'
+      # add the timestamp
+      [date, time] = @_datetime()
+      msg = util.format '%s - %s', time, msg
+      # stdout message
+      console.log msg if env isnt 'production'
+      @_logFile?.write util.format '%s %s\n', date, msg.replace /\x1b\[[0-9;]*m/g, ''
 
   # Getting now date and time
   @_datetime: ->
@@ -64,28 +102,16 @@ module.exports = class Server
     ]
 
   # Respond client's request
-  @respond: (req, res) ->
+  @_respond: (req, res) ->
     # timer for response
-    responseTime = new Date().getTime()
+    elapsedTime = new Date().getTime()
     res.on 'finish', =>
-      res.responseTime = new Date().getTime() - responseTime # response time.
+      res.elapsedTime = new Date().getTime() - elapsedTime
       @log req, res
-
-    # getting server status code page content
-    status = (code, text) =>
-      res.writeHead code, "Content-Type": "text/html;charset=utf-8"
-      # custom server status code response
-      file = path.join process.cwd(), @static, "_#{ code }.html"
-      if fs.existsSync file
-        rs = fs.createReadStream file
-        rs.pipe res
-      # default server status code response
-      else
-        res.end util.format '<title>%s %s</title><center><p><br><br></p><h1>%s %s</h1><p><i>pilot.js<i></p></center>',
-          code, text, code, text
 
     # record error
     file = false
+    controller = null
     pool = (err) =>
       [date, time] = @_datetime()
       text = err.toString()
@@ -102,14 +128,29 @@ module.exports = class Server
           url: req.url
         response:
           file: file
-          charset: err.charset
+          statusCode: res.statusCode
+          elapsedTime: if res.elapsedTime then res.elapsedTime else new Date().getTime() - elapsedTime
       cluster.worker.send err
       @_error? err
 
+    # getting server status code page content
+    status = (code, text) =>
+      res.writeHead code, "Content-Type": "text/html;charset=utf-8"
+      # custom server status code response
+      codefile = path.join process.cwd(), @static, "_#{ code }.html"
+      if fs.existsSync codefile
+        file = codefile
+        rs = fs.createReadStream codefile
+        rs.pipe res
+      # default server status code response
+      else
+        res.end util.format '<title>%s %s</title><center><p><br><br></p><h1>%s %s</h1><p><i>pilot.js<i></p></center>',
+          code, text, code, text
+
     # response timeout, default 30s
-    res.setTimeout @timeout * 1000, ((callback) ->
-      return -> callback 503, 'Service Unavailable'
-    )(status)
+    res.setTimeout @timeout * 1000, ->
+      status 503, 'Service Unavailable'
+      pool new Error 'Service unavailable'
 
     # getting request pathname
     pathname = url.parse(req.url).pathname.toLowerCase()
@@ -117,7 +158,7 @@ module.exports = class Server
     # route to static contents
     staticfile = path.join process.cwd(), @static, pathname
     extname = path.extname staticfile
-    staticfile = path.join staticfile, @index if extname.length < 1
+    staticfile = path.join staticfile, @default + '.html' if extname.length < 1
     if fs.existsSync staticfile
       file = staticfile
       res.writeHead 200, "Content-Type": @contentType extname
@@ -126,79 +167,21 @@ module.exports = class Server
 
     # route to dynamic contents
     if file is false
-      dynamicfile = path.join process.cwd(), @dynamic, pathname + '.js'
+      dynamic = path.join process.cwd(), @dynamic, pathname
+      dynamicfile = dynamic
+      extname = path.extname dynamicfile
+      dynamicfile = dynamicfile + '.js' if extname.length < 1
+      dynamicfile = path.join dynamic, @default + '.js' unless fs.existsSync dynamicfile
       if fs.existsSync dynamicfile
         file = dynamicfile
-        # load controller
         controller = require dynamicfile
         controller = new controller() if typeof controller is 'function'
-        # catch error
-        controller.error (err) =>
-          pool err
-          # 500 Internal Server Error
+        controller.error (err) ->
           status 500, 'Internal Server Error'
-        # finish request
-        controller.finish (statusCode, contentType, charset) ->
-          if statusCode? and contentType?
-            contentType += ';charset=' + charset if charset?.length > 0
-            res.writeHead statusCode, "Content-Type": contentType
-            controller.pipe? res
-        # controller respond client request
-        quest = {}
-        controller.respond quest
+          pool err
+        controller._do req, res
 
     # 404 Not Found
     if file is false
       status 404, 'Not Found'
-      pool new Error util.format 'Can not found file %s and %s', staticfile, dynamicfile
-
-  # Listening for server
-  @listen: ->
-    server = http.createServer @
-    server.listen.apply server, arguments
-
-  # Formator for message
-  @_logFormat = (req, res) ->
-    # NODE_ENV=production.
-    if env is 'production'
-      util.format '%s %s %s ' + style.over('(%sms)'),
-        style.tag(req.method),
-        req.url,
-        style.int(res.statusCode),
-        res.responseTime
-    # NODE_ENV=development.
-    else
-      util.format '%s %s %s ' + style.over('(%sms)'),
-        style.tag(req.method),
-        req.url,
-        style.int(res.statusCode),
-        res.responseTime
-
-  # Message logger
-  @log: (arg1, arg2) ->
-    # setting log file
-    return @_logFile = arg1 if arg1 instanceof Writable
-    # setting log event
-    arg2 = arg1 if typeof arg1 is 'function'
-    return @_logFormat = arg2 if typeof arg2 is 'function'
-    # format string
-    msg = util.format.apply(util, arguments) + '\n' if typeof arg1 is 'string'
-    # format request object
-    if arg1 instanceof http.IncomingMessage and arg2 instanceof http.ServerResponse
-      msg = @_logFormat arg1, arg2
-    # error is not string
-    return if typeof msg isnt 'string'
-
-    # add the timestamp
-    [date, time] = @_datetime()
-    msg = util.format '%s - %s', time, msg
-
-    # stdout message
-    console.log msg if env isnt 'production'
-    @_logFile?.write util.format '%s %s\n', date, msg.replace /\x1b\[[0-9;]*m/g, ''
-
-  # Debug message
-  @debug: (arg1) ->
-    return if typeof arg1 isnt 'string' or env is 'production'
-    msg = 'DEBUG: ' + util.format.apply(util, arguments) + '\n'
-    process.stderr.write msg if env isnt 'production'
+      pool new Error util.format 'Can not found files in %s folder or %s folder.', @static, @dynamic

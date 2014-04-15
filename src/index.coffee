@@ -15,12 +15,12 @@ Controller = require './controller'
 # Create a new connect server
 createServer = ->
   app = (req, res) ->
-    app.respond req, res  
+    app._respond req, res  
   app[key] = value for key, value of Server
   app.timeout = 30 # response timeout
   app.dynamic = 'lib' # dynamic contents folder
   app.static = 'pub' # static contents folder
-  app.index = 'index.html' # default index file
+  app.default = 'index' # default file
   return app
 
 # Expose createServer() as the module
@@ -36,11 +36,3 @@ log = (format) ->
 
 # Expose the logger
 module.exports.log = log
-
-# Logging a debug information
-debug = (format) ->
-  throw new Error 'argv not string' if typeof format isnt 'string'
-  Server.debug.apply Server, arguments
-
-# Expose the debug logger
-module.exports.debug = debug
