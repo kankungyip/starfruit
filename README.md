@@ -18,7 +18,7 @@ $ sudo npm install -g starfruit
 
 ## Features
 1. **Compact**, only 3 core files
-2. **Intelligent**, autoloaders controller files based on user requests
+2. **Intelligent**, automatic route load file
 3. **Security**, controller sandbox operation, automatic restart when crashes
 4. **Automatic**, add new controller codes without shutdown, automatically compile and load
 5. **Multi-core** take advantage of multi-core processing, multi-process server
@@ -58,6 +58,8 @@ https.createServer(options, app).listen(9090);
 ```
 
 ### Dynamic controller
+For controlling the flow of the application, which handles the events and to respond. "Events" includes changing the user's behavior and data model.
+
 All dynamic files (`.js`) in `MyProject/lib` folder, CoffeeScript source files (`.coffee`) in `MyProject/src` folder, resource files (`.html`) in `MyProject/res` folder.
 
 ```js
@@ -72,18 +74,35 @@ app.render = function() {
   $ = this;
   $.sandbox(function() {
     $.writeHead(200, { "Content-Type": "text/html;charset=utf-8" });
-    $.receive(fs.createReadStream('res/app.html'));
+    $.receive(fs.createReadStream('app.html'));
   });
-}
+};
 
-app.textKeyPress = function() {
+app.timeClick = function() {
   $ = this;
-  func = function() {
-    alert('Hi ' + yourName + ', you type a key is ' + event.keyCode);
-  };
-  $.script(func, { yourName: 'Kan' });
-  $.end();
-}
+  $.model({
+    time: ["text", "style"]
+  });
+  if ($.data) {
+    $.data.time.text = new Date().toString();
+    $.data.time.style = 'color:blue';
+    $.end();
+  }
+};
+
+app.helloClick = function() {
+  $ = this;
+  $.model({
+    username: "value",
+    message: "text"
+  });
+  if ($.data) {
+    if ($.data.username) {
+      $.data.message = 'hello ' + $.data.username + ', welcome to starfruit world.';
+    }
+    $.end();
+  }
+};
 ```
 
 or maybe you more like CoffeeScript codes:
@@ -100,10 +119,20 @@ module.exports = class App extends Controller
       @writeHead 200, "Content-Type": "text/html;charset=utf-8"
       @receive fs.createReadStream 'res/app.html'
 
-  textKeyPress: ->
-    func = ->
-      alert "Hi #{ yourName }, you type a key is #{ event.keyCode }"
-    @script func, yourName: 'Kan'
+  timeClick: ->
+    @model
+      time: ["text", "style"]
+    return unless @data
+    @data.time.text = new Date().toString()
+    @data.time.style = 'color:blue'
+    @end()
+
+  helloClick: ->
+    @model
+      username: "value"
+      message: "text"
+    return unless @data
+    @data.message = "hello #{@data.username}, welcome to starfruit world." if @data.username
     @end()
 ```
 
@@ -112,13 +141,20 @@ module.exports = class App extends Controller
 ```html
 <html>
   <head>
-    <title>App</title>
-    <script src="jquery-2.1.0.min.js"></script>
-    <script src="http://yoururl.com/app?script"></script>
+    <title>Demo</title>
+    <script src="http://cdn.bootcss.com/jquery/2.1.0/jquery.min.js"></script>
+    <script src="/?script"></script>
   <head>
   <body>
-    Type some text: 
-    <input id="text" type="text" onkeypress="app.keypress()" />
+    <p><img src="/logo.jpg" /></p>
+    <p>Server time: <span style="color:red" id="time">?</span>
+      <input type="button" value="Get" onclick="app.selector('timeClick')" />
+    </p>
+    <p>Your name:
+      <input id="username" type="text" />
+      <input type="button" value="Hello" onclick="app.selector('helloClick')" />
+      <p id="message"></p>
+    </p>
   </body>
 </html>
 ```
@@ -153,14 +189,37 @@ Use `_<status code>.html` file to customize the server status code page, such as
     - [`server.log (writeStream, [callback])`](https://github.com/kankungyip/starfruit/wiki/API:-Server#log_writestream_callback)
     - [`server.log (callback)`](https://github.com/kankungyip/starfruit/wiki/API:-Server#log_callback)
     - [`server.log (format, [...])`](https://github.com/kankungyip/starfruit/wiki/API:-Server#log_format)
-* `class: Controller`
-    - come soon
+* [`class: Controller`](https://github.com/kankungyip/starfruit/wiki/API:-Controller)
+    - [`controller.query`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#query)
+    - [`controller.data`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#data)
+    - [`controller.parse (raw)`](https://github.com/kankungyip/starfruit/wiki/API:-Controllerhttps://github.com/kankungyip/starfruit/wiki/API:-Controller#parse_raw)
+    - [`controller.end ([data], [encoding])`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#end_data_encoding)
+    - [`controller.write (chunk, [encoding])`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#write_chunk_encoding)
+    - [`controller.writeHead (statusCode, [headers])`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#writeHead_statusCode_headers)
+    - [`controller.receive (readStream, [encoding])`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#receive_readstream_encoding)
+    - [`controller.render ()`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#render)
+    - [`controller.sandbox (callback)`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#sandbox_callback)
+    - [`controller.remote (callback, [argv])`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#remote_callback_argv)
+    - [`controller.model (model)`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#model_model)
+    - [`controller.model (template, model)`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#model_template_model)
+    - [`controller.model (callback, model)`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#model_callback_model)
+    - [Events](https://github.com/kankungyip/starfruit/wiki/API:-Controller#events)
 
 ## Histroy
+### 0.2.1
+Added:
+
++ Data model (base)
++ Demo with CoffeeScript
+
+Changed:
+
+* controller.script(...) -> controller.remote(...)
+
 ### 0.2.0
 Added:
 
-+ Server and client communication events 
++ Server and client communication events
 + Limit the number of error log
 
 Optimized:
