@@ -19,8 +19,8 @@ $ sudo npm install -g starfruit
 ## Features
 1. **Compact**, only 3 core files
 2. **Intelligent**, automatic route load file
-3. **Security**, controller sandbox operation, automatic restart when crashes
-4. **Automatic**, add new controller codes without shutdown, automatically compile and load
+3. **Automatic**, add and modify the code without shutting down the server, and automatically compile load
+4. **Security**, automatically restart when the server crashes
 5. **Multi-core** take advantage of multi-core processing, multi-process server
 6. **Real-time**, real-time monitoring server command-line tool
 
@@ -34,7 +34,7 @@ var sf = require('starfruit')
   , fs = require('fs');
 
 app = sf();
-app.log(fs.createWriteStream('./starfruit.log', { flags: "a" }));
+app.log(fs.createWriteStream('./logger.log', { flags: "a" }));
 app.listen(8080);
 ```
 
@@ -47,7 +47,7 @@ var sf = require('starfruit')
   , https = require('https');
 
 app = sf();
-app.log(fs.createWriteStream('./starfruit.log', { flags: "a" }));
+app.log(fs.createWriteStream('./logger.log', { flags: "a" }));
 
 var options = {
   key: fs.readFileSync('key.pem'),
@@ -72,9 +72,9 @@ module.exports = app = new sf.Controller();
 
 app.render = function() {
   $ = this;
-  $.sandbox(function() {
-    $.writeHead(200, { "Content-Type": "text/html;charset=utf-8" });
-    $.receive(fs.createReadStream('app.html'));
+  $.domain(function() {
+    $.set({ "Content-Type": "text/html;charset=utf-8" });
+    $.write(fs.createReadStream('res/app.html'));
   });
 };
 
@@ -86,7 +86,6 @@ app.timeClick = function() {
   if ($.data) {
     $.data.time.text = new Date().toString();
     $.data.time.style = 'color:blue';
-    $.end();
   }
 };
 
@@ -100,7 +99,6 @@ app.helloClick = function() {
     if ($.data.username) {
       $.data.message = 'hello ' + $.data.username + ', welcome to starfruit world.';
     }
-    $.end();
   }
 };
 ```
@@ -115,9 +113,9 @@ fs = require 'fs'
 
 module.exports = class App extends Controller
   render: ->
-    @sandbox =>
-      @writeHead 200, "Content-Type": "text/html;charset=utf-8"
-      @receive fs.createReadStream 'res/app.html'
+    @domain =>
+      @set "Content-Type": "text/html;charset=utf-8"
+      @write fs.createReadStream 'res/app.html'
 
   timeClick: ->
     @model
@@ -125,7 +123,6 @@ module.exports = class App extends Controller
     return unless @data
     @data.time.text = new Date().toString()
     @data.time.style = 'color:blue'
-    @end()
 
   helloClick: ->
     @model
@@ -133,7 +130,6 @@ module.exports = class App extends Controller
       message: "text"
     return unless @data
     @data.message = "hello #{@data.username}, welcome to starfruit world." if @data.username
-    @end()
 ```
 
 `app.html` contents:
@@ -167,9 +163,6 @@ Use `_<status code>.html` file to customize the server status code page, such as
 * Boot server(enter real-time command line tool) `$ starfruit` or `$ sf`
 * Add server process(maximum number of processes CPU cores) `add <num>`
 * List all server processes `list` or `ls`
-* List all internal errors `error` or `err`
-* Check a error `error <id>` or `err <id>`
-* Delete a error `error -<id>` or `err -<id>`
 * Shutdown a process `remove <pid>` or `rm <pid>`
 * Quit `quit`
 
@@ -179,67 +172,37 @@ Use `_<status code>.html` file to customize the server status code page, such as
     - [`sf.log (format, [...])`](https://github.com/kankungyip/starfruit/wiki/API:-starfruit#log_format)
     - [`class: sf.Controller`](https://github.com/kankungyip/starfruit/wiki/API:-starfruit#class_sf_controller)
 * [`class: Server`](https://github.com/kankungyip/starfruit/wiki/API:-Server)
-    - [`server.timeout`](https://github.com/kankungyip/starfruit/wiki/API:-Server#timeout)
-    - [`server.dynamic`](https://github.com/kankungyip/starfruit/wiki/API:-Server#dynamic)
-    - [`server.static`](https://github.com/kankungyip/starfruit/wiki/API:-Server#static)
-    - [`server.default`](https://github.com/kankungyip/starfruit/wiki/API:-Server#default)
-    - [`server.contentType (extname, [type])`](https://github.com/kankungyip/starfruit/wiki/API:-Server#contenttype_extname_type)
-    - [`server.listen (port)`](https://github.com/kankungyip/starfruit/wiki/API:-Server#listen_port)
-    - [`server.error (callback)`](https://github.com/kankungyip/starfruit/wiki/API:-Server#error_callback)
-    - [`server.log (writeStream, [callback])`](https://github.com/kankungyip/starfruit/wiki/API:-Server#log_writestream_callback)
-    - [`server.log (callback)`](https://github.com/kankungyip/starfruit/wiki/API:-Server#log_callback)
-    - [`server.log (format, [...])`](https://github.com/kankungyip/starfruit/wiki/API:-Server#log_format)
+    + [Propertys](https://github.com/kankungyip/starfruit/wiki/API:-Server#propertys)
+        - [`server.timeout`](https://github.com/kankungyip/starfruit/wiki/API:-Server#timeout)
+        - [`server.dynamic`](https://github.com/kankungyip/starfruit/wiki/API:-Server#dynamic)
+        - [`server.static`](https://github.com/kankungyip/starfruit/wiki/API:-Server#static)
+        - [`server.default`](https://github.com/kankungyip/starfruit/wiki/API:-Server#default)
+    + [Methods](https://github.com/kankungyip/starfruit/wiki/API:-Server#methods)
+        - [`server.contentType (extname, [type])`](https://github.com/kankungyip/starfruit/wiki/API:-Server#contenttype_extname_type)
+        - [`server.listen (port)`](https://github.com/kankungyip/starfruit/wiki/API:-Server#listen_port)
+        - [`server.error (callback)`](https://github.com/kankungyip/starfruit/wiki/API:-Server#error_callback)
+        - [`server.log (writeStream, [callback])`](https://github.com/kankungyip/starfruit/wiki/API:-Server#log_writestream_callback)
+        - [`server.log (callback)`](https://github.com/kankungyip/starfruit/wiki/API:-Server#log_callback)
+        - [`server.log (format, [...])`](https://github.com/kankungyip/starfruit/wiki/API:-Server#log_format)
 * [`class: Controller`](https://github.com/kankungyip/starfruit/wiki/API:-Controller)
-    - [`controller.query`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#query)
-    - [`controller.data`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#data)
-    - [`controller.parse (raw)`](https://github.com/kankungyip/starfruit/wiki/API:-Controllerhttps://github.com/kankungyip/starfruit/wiki/API:-Controller#parse_raw)
-    - [`controller.end ([data], [encoding])`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#end_data_encoding)
-    - [`controller.write (chunk, [encoding])`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#write_chunk_encoding)
-    - [`controller.writeHead (statusCode, [headers])`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#writeHead_statusCode_headers)
-    - [`controller.receive (readStream, [encoding])`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#receive_readstream_encoding)
-    - [`controller.render ()`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#render)
-    - [`controller.sandbox (callback)`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#sandbox_callback)
-    - [`controller.remote (callback, [argv])`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#remote_callback_argv)
-    - [`controller.model (model)`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#model_model)
-    - [`controller.model (template, model)`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#model_template_model)
-    - [`controller.model (callback, model)`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#model_callback_model)
-    - [Events](https://github.com/kankungyip/starfruit/wiki/API:-Controller#events)
+    + [Propertys](https://github.com/kankungyip/starfruit/wiki/API:-Controller#propertys)
+        - [`controller.query`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#query)
+        - [`controller.data`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#data)
+    + [Methods](https://github.com/kankungyip/starfruit/wiki/API:-Controller#methods)
+        - [`controller.render ()`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#render)
+        - [`controller.parse (raw)`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#parse_raw)
+        - [`controller.domain (callback)`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#domain_callback)
+        - [`controller.handle (callback, [argv])`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#handle_callback_argv)
+        - [`controller.set (headers)`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#set_headers)
+        - [`controller.write (chunk, [encoding])`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#write_chunk_encoding)
+        - [`controller.write (readStream, [encoding])`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#write_readstream_encoding)
+        - [`controller.model (model)`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#model_model)
+        - [`controller.model (template, model)`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#model_template_model)
+        - [`controller.model (callback, model)`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#model_callback_model)
+    + [Events](https://github.com/kankungyip/starfruit/wiki/API:-Controller#events)
 
 ## Histroy
-### 0.2.1
-Added:
-
-+ Data model (base)
-+ Demo with CoffeeScript
-
-Changed:
-
-* controller.script(...) -> controller.remote(...)
-
-### 0.2.0
-Added:
-
-+ Server and client communication events
-+ Limit the number of error log
-
-Optimized:
-
-* Server
-
-### 0.1.9
-Added:
-
-+ Dynamic controller
-+ Error messages pool
-+ Check error command
-
-Fixed:
-
-* Command line tool bugs
-
-### 0.1.0
-+ Static web server
-+ Real-time command line tool
+See [histroy](https://github.com/kankungyip/starfruit/wiki/History).
 
 ## License
 See [LICENSE](https://github.com/kankungyip/starfruit/blob/master/LICENSE).
