@@ -24,13 +24,13 @@ env = process.env.NODE_ENV or 'development'
 
 # styles
 style =
-  header: (str) -> '\x1b[1;4m' + str + '\x1b[0m'
+  head: (str) -> '\x1b[1;4m' + str + '\x1b[0m'
   int: (str) -> '\x1b[34m' + str + '\x1b[0m'
   tag: (str) -> '\x1b[32m' + str + '\x1b[0m'
+  tip: (str) -> '\x1b[36m' + str + '\x1b[0m'
+  cmd: (str) -> '\x1b[32m' + str + '\x1b[0m'
   error: (str) -> '\x1b[31m' + str + '\x1b[0m'
   warning: (str) -> '\x1b[33m' + str + '\x1b[0m'
-  over: (str) -> '\x1b[36m' + str + '\x1b[0m'
-  cmd: (str) -> '\x1b[32m' + str + '\x1b[0m'
 
 # cpus
 MAX_CPUS = os.cpus().length
@@ -70,10 +70,6 @@ USAGE_HELP = '\x1b[1mStarfruit\x1b[0m
 \n    add [<cpus>]              add a server process, each process uses a cpu
 \n                              core, default add 1 process
 \n    clear                     clear screen
-\n    error [[-]<id>] [+<max>]  list all internal errors, check error
-\n                              information by error id or delete error by
-\n                              error id
-\n                              +<max> to set the max number of error log,
 \n                              default max number is 20
 \n    help                      commands help infomation
 \n    list                      list all server processes
@@ -85,7 +81,7 @@ USAGE_HELP = '\x1b[1mStarfruit\x1b[0m
 \n    starfruit production -c 2
 \n    starfruit -c 2 -l coffeescript
 \n
-\nDocumentation can be found at https://github.com/davedelong/starfruit/wiki'
+\nDocumentation can be found at https://github.com/kankungyip/starfruit/wiki'
 
 SHELL_HELP = '\x1b[1mStarfruit\x1b[0m
 \nCopyright (c) 2014 Kan Kung-Yip.
@@ -94,9 +90,6 @@ SHELL_HELP = '\x1b[1mStarfruit\x1b[0m
 \n  add <cpus>                add a server process, each process uses a cpu
 \n                            core, default add 1 process
 \n  clear                     clear screen
-\n  error [[-]<id>]           list all internal errors, check error
-\n                            information by error id or delete error by
-\n                            error id
 \n  help                      commands help infomation
 \n  list                      list all server processes
 \n  remove <pid>              shutdown a server process by process id
@@ -108,26 +101,12 @@ SHELL_HELP = '\x1b[1mStarfruit\x1b[0m
 # Store all workers
 workers = {}
 
-# Store all errors
-MAX_ERRS = 10
-errors = { index: 0 }
-
 # Show help infomations.
 help = (info) -> process.stdout.write info
 
 # Start a server process
 start = (env) ->
   worker = cluster.fork "NODE_ENV": env
-  # error record
-  worker.on 'message', (err) ->
-    index = 0
-    length = 0
-    for key of errors
-      length++
-      index = key if (key isnt 'index') and (index is 0)
-    delete errors[index] if length > MAX_ERRS
-    errors.index++
-    errors[errors.index] = err
   # start process
   pid = worker.process.pid
   date = new Date()
@@ -145,7 +124,7 @@ start = (env) ->
 boot = (env, argv) ->
   # boot master cluster
   return unless cluster.isMaster
-  console.log 'Node environment: %s', style.header env.toUpperCase()
+  console.log 'Node environment: %s', style.head env.toUpperCase()
   basedir = process.cwd()
   # getting argvs
   cpus = 1
@@ -165,7 +144,7 @@ boot = (env, argv) ->
       when '-l', '--language'
         switch argv.shift()
           when 'javascript', 'js' then language = 'javascript'
-          else console.error style.error 'Only support javascript or coffeescript language, default coffeescript'
+          else console.error style.error 'Only support JavaScript or CoffeeScript language, default CoffeeScript'
 
   # build source codes
   lib = path.join basedir, dynamic
@@ -206,7 +185,7 @@ shutdown = (message = '') ->
 # List all workers
 list = ->
   i = 0
-  message = util.format '\n  %s', style.header '\tPID\tTIME                  '
+  message = util.format '\n  %s', style.head '\tPID\tTIME                  '
   for pid, worker of workers
     message += util.format '\n   %d\t%s\t%s', ++i, style.int(pid), worker.date
   console.log message + '\n'
@@ -240,81 +219,6 @@ remove = (pid) ->
 # Restart all process
 restart = ->
   process.kill pid for pid of workers
-
-# Dispaly error infomation
-error = (ids) ->
-  if ids.length > 0
-    max = ids[0]
-    # max number of error log
-    if max.indexOf('+') is 0
-      max = parseInt max.substr 1
-      max = 20 if isNaN max
-      # delete overflow
-      length = (index for index of errors).length - 1
-      for key of errors
-        if (key isnt 'index') and (length > max)
-          delete errors[key]
-          length--
-      MAX_ERRS = max
-      return console.log 'Record up to %s errors\n', style.int max
-    # select error by id
-    for id in ids
-      fixed = false
-      if id.indexOf('-') is 0
-        fixed = true
-        id = id.substr 1
-      # found error
-      return console.log 'Can not found error %s\n', style.int(id) unless errors.hasOwnProperty id
-      # error fixed
-      if fixed is true
-        console.log 'Error %s has done', style.int id
-        delete errors[id]
-      # error information
-      else
-        err = errors[id]
-        req = err.request
-        res = err.response
-        console.log '
-        \n  %s
-        \n   %s
-        \n  %s
-        \n   %s %s
-        \n  %s
-        \n   %s - %s
-        \n  %s
-        \n   method:       %s
-        \n   url:          %s
-        \n  %s
-        \n   file:         %s
-        \n   status code:  %s
-        \n   elapsed time: %sms
-        ',
-          style.header('                          error id '),
-          style.int id
-          style.header('                              time '),
-          err.date, err.time,
-          style.header('                           message '),
-          err.title, err.message,
-          style.header('                    client request '),
-          style.tag(req.method),
-          req.url,
-          style.header('                   server response '),
-          res.file,
-          res.statusCode,
-          res.elapsedTime
-    console.log '' # blank line
-
-  # list all errors
-  else
-    message = ''
-    for id, err of errors
-      if typeof err is 'object'
-        text = util.format '\n   %d\t%s', id, err.message
-        if text.length > 70
-          text = util.format '%s...%s', text.substr(0, 40), text.substr(text.length - 27)
-        message += text
-    message = style.over '\n\tNo error' if message.length is 0
-    console.log util.format '\n  %s%s\n', style.header('\tERRORS                            '), message
 
 # Quit starfruit shell
 quit = (resolve) ->
@@ -361,7 +265,6 @@ do repl = (message = '', confirm = null) ->
     switch command
       when 'add' then add env, argv[0]
       when 'clear', 'cls' then process.stdout.write '\x1b[0;0H\x1b[K\x1b[J'
-      when 'error', 'err' then error argv
       when 'help', '?' then help SHELL_HELP
       when 'list', 'ls' then list()
       when 'remove', 'rm' then remove argv[0]

@@ -37,19 +37,26 @@ application = ->
   app = window.app = (event, selector) ->
     window.event = event
     app._url = "#{location.pathname}?selector=#{selector}&_id=event&_key="
-    return app._selector[selector]() if typeof app._selector[selector] is 'function'
+    return app.callers[selector]() if typeof app.callers[selector] is 'function'
     # getting event script
     $.getScript app._url + 'script'
-    .done -> app._selector[selector]() if typeof app._selector[selector] is 'function'
+    .done (script) -> app.callers[selector]() if typeof app.callers[selector] is 'function'
 
   # application events
-  app._selector = {}
+  app.callers = {}
   app.selector = (selector) -> app _event, selector
 
   # core data
   app.core = {
     # base data carrier and catcher
     base: (model) ->
+      # set value to dom element
+      set = (elem, name, value) ->
+        switch name.toString()
+          when 'text' then elem.text value
+          when 'html' then elem.html value
+          when 'value' then elem.val value
+          else elem.attr name, value
       # get value from dom element
       get = (elem, name) ->
         switch name.toString()
@@ -58,22 +65,8 @@ application = ->
           when 'value' then value = elem.val()
           else value = elem.attr name
         return value
-      # user data
-      data = {}
-      for id, attrs of model
-        elem = $('#' + id)
-        data[id] = {}
-        unless $.isArray attrs then data[id] = get elem, attrs
-        else data[id][name] = get elem, name for name in attrs
       # set data
       carrier = (data) ->
-        # set value to dom element
-        set = (elem, name, value) ->
-          switch name.toString()
-            when 'text' then elem.text value
-            when 'html' then elem.html value
-            when 'value' then elem.val value
-            else elem.attr name, value
         # user data
         for id, attrs of model
           elem = $('#' + id)
@@ -81,6 +74,12 @@ application = ->
           unless $.isArray attrs then set elem, attrs, data[id]
           else set elem, name, data[id][name] for name in attrs
       # post data
+      data = {}
+      for id, attrs of model
+        elem = $('#' + id)
+        data[id] = {}
+        unless $.isArray attrs then data[id] = get elem, attrs
+        else data[id][name] = get elem, name for name in attrs
       $.post app._url + 'data', (JSON.stringify data), carrier, 'json'
   }
 
@@ -99,58 +98,44 @@ module.exports = class Controller
   # Constructor
   constructor: ->
     # sandbox runtime
-    @_sandbox = domain.create()
-    @_sandbox.on 'error', (err) =>
+    @_domain = domain.create()
+    @_domain.on 'error', (err) =>
       @_finish = null
       @_error? err
     # application's event callback
-    @_callback = ''
+    @_script = ''
 
-  # End buffer
-  end: ->
-    return if @_end is true
-    switch @query._key
-      when 'script' then @_buffer?.write "app._selector['#{@query.selector}'] = function() { #{@_callback} };"
-      when 'data' then @_buffer?.write JSON.stringify @data
-    @_buffer?.end.apply @_buffer, arguments
-    @_end = true
-
-  # Write chunk to buffer
-  write: -> @_buffer?.write.apply @_buffer, arguments if @_end isnt true
-
-  # Write status and headers
-  writeHead: -> @_buffer?.writeHead.apply @_buffer, arguments if @_end isnt true
-
-  # Receive stream
-  receive: (stream, encoding = 'utf8') ->
-    return if @_end is true
-    return unless stream instanceof Readable
-    stream.setEncoding = encoding if typeof encoding is 'string'
-    stream.pipe @_buffer if @_buffer
-
-  # Render content
-  render: -> @end 'I love starfruit!' # default
-
-  # Sandbox runing
-  sandbox: (callback) ->
+  # Domain running
+  domain: (callback) ->
     if typeof callback isnt 'function'
       throw new TypeError typeof(callback) + ' is not a function'
-    @_sandbox?.run callback
+    @_domain?.run callback
 
   # Catch the error
   error: (callback) ->
     if typeof callback isnt 'function'
       throw new TypeError typeof(callback) + ' is not a function'
-    @_error = callback
+    @_error = callback  
 
-  # User event script
-  remote: (callback, argv) ->
+  # Set headers
+  set: (headers) -> @_buffer.writeHead 200, headers
+
+  # Write chunk or pipe stream to buffer
+  write: (data, encoding = 'utf8') ->
+    return @_buffer.write.apply @_buffer, arguments unless data instanceof Readable
+    @_buffer.on 'pipe', => @_autoend = false
+    data.setEncoding = encoding
+    data.pipe @_buffer, end: @_autoend
+    data.on 'end', => @_buffer.end()
+
+  # Render content
+  render: -> @write 'I love starfruit!' # default      
+
+  # Client's event script
+  handle: (callback, argv) ->
     if typeof callback isnt 'function'
       throw new TypeError typeof(callback) + ' is not a function'
-    @_callback += callback.script argv
-
-  # parse data raw
-  parse: (raw) -> return JSON.parse raw
+    @_script += callback.script argv
 
   # User date model
   model: (template, model) ->
@@ -163,18 +148,20 @@ module.exports = class Controller
       return if @query._key isnt 'script'
       # user template
       if typeof template is 'function'
-        @remote (-> func model), func: template, model: model
+        @handle (-> func model), func: template, model: model
       # template library
       else
         switch template
           when 'base' #, ... more templates
-            @remote (-> app.core[key] model), key: template, model: model
+            @handle (-> app.core[key] model), key: template, model: model
           # default
-          else @remote (-> app.core['base'] model), model: model
-      @end()
+          else @handle (-> app.core['base'] model), model: model
+
+  # parse data raw
+  parse: (raw) -> JSON.parse raw
 
   # Respond client
-  _do: (req, @_buffer) ->
+  do: (req, @_buffer) ->
     # parse url
     req.setEncoding 'utf8'
     urls = url.parse req.url
@@ -183,18 +170,34 @@ module.exports = class Controller
     # response buffer
     @_buffer.removeAllListeners 'error'
     @_buffer.on 'error', (err) => @_error? err
-    # default content
-    @writeHead 200, "Content-Type": "text/plain;charset=utf-8"
-    return @render() if !@query.raw or @query.raw.length < 1
+    # render content
+    @set "Content-Type": "text/plain;charset=utf-8"
+    if !@query.raw or @query.raw.length < 1
+      @_autoend = true
+      @render()
     # application content
-    return @end application.script() if @query.raw is 'script'
-    # post data
-    raw = ''
-    req.on 'data', (chunk) -> raw += chunk
-    req.on 'end', =>
-      @data = @parse raw if raw.length > 0
-      switch @query._id
-        when 'event'
-          selector = @query.selector
-          @[selector]() if typeof @[selector] is 'function'
-          @end()
+    else if @query.raw is 'script'
+      @_autoend = true
+      @set "Content-Type": "text/javascript;charset=utf-8"
+      @write application.script()
+    # geting user post data
+    else
+      @_autoend = false
+      raw = ''
+      req.on 'data', (chunk) -> raw += chunk
+      req.on 'end', =>
+        @data = @parse raw if raw.length > 0
+        switch @query._id
+          when 'event'
+            selector = @query.selector
+            @[selector]() if typeof @[selector] is 'function'
+            switch @query._key
+              when 'script'
+                @set "Content-Type": "text/javascript;charset=utf-8"
+                @write "app.callers['#{@query.selector}']=function(){#{@_script}};"
+              when 'data'
+                @set "Content-Type": "application/json;charset=utf-8"
+                @write JSON.stringify @data
+        @_buffer.end()
+    # end respond
+    @_buffer.end() if @_autoend is true
