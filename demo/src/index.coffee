@@ -3,10 +3,9 @@ fs = require 'fs'
 
 module.exports = class App extends Controller
 
-  render: ->
-    @domain =>
-      @set "Content-Type": "text/html;charset=utf-8"
-      @write fs.createReadStream 'res/app.html'
+  init: ->
+    @title = 'layout'
+    @layout = 'app.layout'
 
   timeClick: ->
     @model
@@ -20,4 +19,4 @@ module.exports = class App extends Controller
       username: "value"
       message: "text"
     return unless @data
-    @data.message = "hello #{@data.username}, welcome to starfruit world." if @data.username
+    @data.message = "Hello #{@data.username}, welcome to starfruit world!" if @data.username

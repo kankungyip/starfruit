@@ -157,6 +157,7 @@ module.exports = class Server
         controller.error (err) ->
           status 500, 'Internal Server Error'
           @_error? err
+        controller.init?()
         controller.do req, res
 
     # 404 Not Found

@@ -44,43 +44,41 @@ application = ->
 
   # application events
   app.callers = {}
-  app.selector = (selector) -> app _event, selector
+  app.selector = window.selector = (selector) -> app _event, selector
+
+  # set element value or attrible
+  set = (elem, name, value) ->
+    switch name.toString().toLowerCase()
+      when 'text' then elem.text value
+      when 'html' then elem.html value
+      when 'value' then elem.val value
+      else elem.attr name, value
+
+  # get element value or attrible
+  get = (elem, name) ->
+    switch name.toString().toLowerCase()
+      when 'text' then elem.text()
+      when 'html' then elem.html()
+      when 'value' then elem.val()
+      else elem.attr name
 
   # core data
   app.core = {
-    # base data carrier and catcher
+    # base data
     base: (model) ->
-      # set value to dom element
-      set = (elem, name, value) ->
-        switch name.toString()
-          when 'text' then elem.text value
-          when 'html' then elem.html value
-          when 'value' then elem.val value
-          else elem.attr name, value
-      # get value from dom element
-      get = (elem, name) ->
-        switch name.toString()
-          when 'text' then value = elem.text()
-          when 'html' then value = elem.html()
-          when 'value' then value = elem.val()
-          else value = elem.attr name
-        return value
-      # set data
-      carrier = (data) ->
-        # user data
-        for id, attrs of model
-          elem = $('#' + id)
-          continue unless data[id]
-          unless $.isArray attrs then set elem, attrs, data[id]
-          else set elem, name, data[id][name] for name in attrs
-      # post data
       data = {}
       for id, attrs of model
         elem = $('#' + id)
         data[id] = {}
         unless $.isArray attrs then data[id] = get elem, attrs
         else data[id][name] = get elem, name for name in attrs
-      $.post app._url + 'data', (JSON.stringify data), carrier, 'json'
+      $.post app._url + 'data', (JSON.stringify data), 'json'
+      .done (data) ->
+        for id, attrs of model
+          elem = $('#' + id)
+          continue unless data[id]
+          unless $.isArray attrs then set elem, attrs, data[id]
+          else set elem, name, data[id][name] for name in attrs
   }
 
   # getting user event
@@ -105,6 +103,54 @@ module.exports = class Controller
     # application's event callback
     @_script = ''
 
+  # Render content
+  render: ->
+    template = "<!DOCTYPE html>
+      <html>
+        <head>
+          <title>%s</title>
+          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+          <!-- Bootstrap -->
+          <link rel=\"stylesheet\" href=\"http://cdn.bootcss.com/twitter-bootstrap/3.0.3/css/bootstrap.min.css\">
+
+          <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+          <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+          <!--[if lt IE 9]>
+              <script src=\"http://cdn.bootcss.com/html5shiv/3.7.0/html5shiv.min.js\"></script>
+              <script src=\"http://cdn.bootcss.com/respond.js/1.3.0/respond.min.js\"></script>
+          <![endif]-->
+
+          <!-- Fav and touch icons -->
+          <link rel=\"apple-touch-icon-precomposed\" sizes=\"144x144\" href=\"/apple-touch-icon-144-precomposed.png\">
+          <link rel=\"apple-touch-icon-precomposed\" sizes=\"114x114\" href=\"/apple-touch-icon-114-precomposed.png\">
+          <link rel=\"apple-touch-icon-precomposed\" sizes=\"72x72\" href=\"/apple-touch-icon-72-precomposed.png\">
+          <link rel=\"apple-touch-icon-precomposed\" href=\"/apple-touch-icon-57-precomposed.png\">
+          <link rel=\"shortcut icon\" href=\"/favicon.png\">
+        </head>
+        <body>
+          %s
+
+          <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+          <script src=\"http://cdn.bootcss.com/jquery/1.10.2/jquery.min.js\"></script>
+          <!-- Include all compiled plugins (below), or include individual files as needed -->
+          <script src=\"http://cdn.bootcss.com/twitter-bootstrap/3.0.3/js/bootstrap.min.js\"></script>
+          <!-- Starfruit\'s application -->
+          <script src=\"%s?script\"></script>
+        </body>
+      </html>"
+    layout = fs.readFileSync 'res/' + @layout
+    @set "Content-Type": "text/html;charset=utf-8"
+    @write util.format template, @title, layout, @_pathname
+
+  # parse data raw
+  parse: (raw) -> JSON.parse raw
+
+  # Client's event script
+  handle: (callback, argv) ->
+    if typeof callback isnt 'function'
+      throw new TypeError typeof(callback) + ' is not a function'
+    @_script += callback.script argv
+
   # Domain running
   domain: (callback) ->
     if typeof callback isnt 'function'
@@ -128,15 +174,6 @@ module.exports = class Controller
     data.pipe @_buffer, end: @_autoend
     data.on 'end', => @_buffer.end()
 
-  # Render content
-  render: -> @write 'I love starfruit!' # default      
-
-  # Client's event script
-  handle: (callback, argv) ->
-    if typeof callback isnt 'function'
-      throw new TypeError typeof(callback) + ' is not a function'
-    @_script += callback.script argv
-
   # User date model
   model: (template, model) ->
     # user template
@@ -157,29 +194,31 @@ module.exports = class Controller
           # default
           else @handle (-> app.core['base'] model), model: model
 
-  # parse data raw
-  parse: (raw) -> JSON.parse raw
-
   # Respond client
   do: (req, @_buffer) ->
     # parse url
     req.setEncoding 'utf8'
     urls = url.parse req.url
+    @_pathname = urls.pathname.toLowerCase()
     @query = querystring.parse urls.query
     @query.raw = urls.query
+
     # response buffer
     @_buffer.removeAllListeners 'error'
     @_buffer.on 'error', (err) => @_error? err
+
     # render content
-    @set "Content-Type": "text/plain;charset=utf-8"
     if !@query.raw or @query.raw.length < 1
+      @set "Content-Type": "text/plain"
       @_autoend = true
       @render()
+
     # application content
     else if @query.raw is 'script'
       @_autoend = true
-      @set "Content-Type": "text/javascript;charset=utf-8"
+      @set "Content-Type": "text/javascript"
       @write application.script()
+
     # geting user post data
     else
       @_autoend = false
@@ -193,11 +232,12 @@ module.exports = class Controller
             @[selector]() if typeof @[selector] is 'function'
             switch @query._key
               when 'script'
-                @set "Content-Type": "text/javascript;charset=utf-8"
+                @set "Content-Type": "text/javascript"
                 @write "app.callers['#{@query.selector}']=function(){#{@_script}};"
               when 'data'
-                @set "Content-Type": "application/json;charset=utf-8"
+                @set "Content-Type": "application/json"
                 @write JSON.stringify @data
         @_buffer.end()
+
     # end respond
     @_buffer.end() if @_autoend is true
