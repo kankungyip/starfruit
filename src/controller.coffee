@@ -34,61 +34,180 @@ Function::script = (argv) ->
 # Application script
 application = ->
   # application object
-  app = window.app = (event, selector) ->
-    window.event = event
-    app._url = "#{location.pathname}?selector=#{selector}&_id=event&_key="
-    return app.callers[selector]() if typeof app.callers[selector] is 'function'
-    # getting event script
-    $.getScript app._url + 'script'
-    .done (script) -> app.callers[selector]() if typeof app.callers[selector] is 'function'
+  app = window.app = {}
+  app.callers = {}
+  app.model = {}
 
   # application events
-  app.callers = {}
-  app.selector = window.selector = (selector) -> app _event, selector
-
-  # set element value or attrible
-  set = (elem, name, value) ->
-    switch name.toString().toLowerCase()
-      when 'text' then elem.text value
-      when 'html' then elem.html value
-      when 'value' then elem.val value
-      else elem.attr name, value
+  app.selector = window.selector = (selname) ->
+    window._event = event
+    return app.callers[selname](selname) if typeof app.callers[selname] is 'function'
+    $.getScript "#{location.pathname}?_id=event&_key=script&selector=#{selname}"
+    .done -> app.callers[selname](selname) if typeof app.callers[selname] is 'function'
 
   # get element value or attrible
-  get = (elem, name) ->
+  getValue = (elem, name) ->
     switch name.toString().toLowerCase()
       when 'text' then elem.text()
       when 'html' then elem.html()
       when 'value' then elem.val()
       else elem.attr name
 
-  # core data
-  app.core = {
-    # base data
-    base: (model) ->
+  # set element value or attrible
+  setValue = (elem, name, value) ->
+    switch name.toString().toLowerCase()
+      when 'text' then elem.text value
+      when 'html' then elem.html value
+      when 'value' then elem.val value
+      else elem.attr name, value
+
+  # data model
+  model = app.model = (models, selname) ->
+    # getting data
+    get = ->
       data = {}
-      for id, attrs of model
-        elem = $('#' + id)
+      _get = (sets, root) ->
+        sets._selname = selname
+        switch sets.base
+          when 'list' then app.model.list.get sets, root
+          else app.model.base.get sets, root
+      for name, sets of models
+        if (typeof sets isnt 'object') or $.isArray sets
+          data = _get models, $('html')
+          break
+        data[name] = _get sets, $('html')
+      JSON.stringify data
+    # setting data
+    set = (data) ->
+      _set = (sets, data, root) ->
+        sets._selname = selname
+        switch sets.base
+          when 'list' then app.model.list.set sets, data, root
+          else app.model.base.set sets, data, root
+      for name, sets of models
+        if (typeof sets isnt 'object') or $.isArray sets
+          _set models, data, $('html')
+          break
+        _set sets, data[name], $('html')
+    # post event
+    $.post "#{location.pathname}?_id=event&_key=data&selector=#{selname}",
+      get(), set, 'json'
+
+  # base data model
+  model.base =
+    get: (sets, root) ->
+      data = {}
+      sets = sets.entry if sets.entry
+      for id, attrs of sets
+        elem = root.find '#' + id
         data[id] = {}
-        unless $.isArray attrs then data[id] = get elem, attrs
-        else data[id][name] = get elem, name for name in attrs
-      $.post app._url + 'data', (JSON.stringify data), 'json'
-      .done (data) ->
-        for id, attrs of model
-          elem = $('#' + id)
-          continue unless data[id]
-          unless $.isArray attrs then set elem, attrs, data[id]
-          else set elem, name, data[id][name] for name in attrs
-  }
+        unless $.isArray attrs then data[id] = getValue elem, attrs
+        else data[id][attr] = getValue elem, attr for attr in attrs
+      return data
+
+    set: (sets, data, root) ->
+      sets = sets.entry if sets.entry
+      for id, attrs of sets
+        elem = root.find '#' + id
+        continue unless data[id]?
+        unless $.isArray attrs then setValue elem, attrs, data[id]
+        else setValue elem, attr, data[id][attr] for attr in attrs
+
+  # list data model
+  model.list =
+    actived: (sets) ->
+      root = $ '#' + sets.root
+      temp = "[style*='#{sets.active.style}']"
+      temp = ".#{sets.active.class}" if sets.active.class
+      root.children temp
+
+    target: (sets) ->
+      if sets.active.index?
+        root = $ '#' + sets.root
+        index = parseInt sets.active.index
+        if isNaN(index) or (index < 0) then index = 0
+        length = root.children().length
+        if index >= length then index = length - 1
+        target = root.children().eq index
+      else
+        target = $ _event.target
+        type = 'on' + _event.type
+        if typeof target.attr(type) isnt 'string'
+          target = target.parents "[#{type}*='#{sets._selname}']:first"
+      return target
+
+    get: (sets) ->
+      data = {}
+      switch sets.method.toLowerCase()
+        when 'remove'
+          actived = model.list.actived sets
+          data = model.base.get sets.entry, actived if sets.entry
+          data._id = actived.attr 'id'
+        when 'active'
+          target = model.list.target sets
+          data = model.base.get sets.entry, target
+          data._id = target.attr 'id'
+      return data
+
+    set: (sets, data) ->
+      actived = model.list.actived sets
+      method = sets.method.toLowerCase()
+      switch method
+        when 'add', 'insert'
+          return unless data
+          root = $ '#' + sets.root
+          return if root.length < 1
+          temp = "[style*='#{sets.active.style}']"
+          temp = ".#{sets.active.class}" if sets.active.class
+          template = root.children().not(temp).first()
+          for uid, record of data
+            entry = template.clone()
+            entry.attr 'id', uid
+            # set contents
+            for id, attrs of sets.entry
+              elem = entry.children '#' + id
+              unless $.isArray attrs then setValue elem, attrs, record[id]
+              else setValue elem, attr, value[id][attr] for attr in attrs
+            if (actived.index() < 0) or (method is 'add') then root.append entry
+            else entry.insertBefore actived
+          unless template.attr('id') then template.remove()
+        when 'active'
+          return if sets.active.index? and actived.length > 0
+          root = $ '#' + sets.root
+          target = model.list.target sets
+          model.base.set sets, data, target
+          # active style
+          if sets.active.class
+            root.children().removeClass sets.active.class
+            target.addClass sets.active.class
+          if sets.active.style
+            template = root.children().not("[style*='#{sets.active.style}']").first()
+            style = if template.attr 'style' then template.attr 'style' else ''
+            root.children().attr 'style', style
+            style = if target.attr 'style' then target.attr 'style' else ''
+            target.attr 'style', "#{style};#{sets.active.style};"
+        when 'blur', 'remove'
+          root = $ '#' + sets.root
+          if sets.active.class
+            root.children().removeClass sets.active.class
+          if sets.active.style
+            template = root.children().not("[style*='#{sets.active.style}']").first()
+            style = if template.attr 'style' then template.attr 'style' else ''
+            root.children().attr 'style', style
+          # remove actived item
+          actived.remove() if (method is 'remove') and (actived.index() > -1 ) 
 
   # getting user event
-  window.constructor::__defineGetter__ '_event', ->
+  window.constructor::__defineGetter__ 'event', ->
     func = arguments.callee.caller
     while func?
       arg = func.arguments[0]
       return arg if arg instanceof Event
       func = func.caller
     return null
+
+  # elements' load event
+  $(document).ready -> $('[onload]').load()
 
 # prototype
 module.exports = class Controller
@@ -103,6 +222,12 @@ module.exports = class Controller
     # application's event callback
     @_script = ''
 
+  # Unique ID
+  uid: (length = 8) ->
+    id = ''
+    id += Math.random().toString(36).substr(2) while id.length < length
+    id.substr 0, length
+
   # Render content
   render: ->
     template = "<!DOCTYPE html>
@@ -113,6 +238,9 @@ module.exports = class Controller
           <!-- Bootstrap -->
           <link rel=\"stylesheet\" href=\"http://cdn.bootcss.com/twitter-bootstrap/3.0.3/css/bootstrap.min.css\">
 
+          <!-- Styles -->
+          <link rel=\"stylesheet\" href=\"/styles.css\">
+
           <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
           <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
           <!--[if lt IE 9]>
@@ -120,7 +248,7 @@ module.exports = class Controller
               <script src=\"http://cdn.bootcss.com/respond.js/1.3.0/respond.min.js\"></script>
           <![endif]-->
 
-          <!-- Fav and touch icons -->
+          <!-- Favorite and touch icons -->
           <link rel=\"apple-touch-icon-precomposed\" sizes=\"144x144\" href=\"/apple-touch-icon-144-precomposed.png\">
           <link rel=\"apple-touch-icon-precomposed\" sizes=\"114x114\" href=\"/apple-touch-icon-114-precomposed.png\">
           <link rel=\"apple-touch-icon-precomposed\" sizes=\"72x72\" href=\"/apple-touch-icon-72-precomposed.png\">
@@ -175,7 +303,8 @@ module.exports = class Controller
     data.on 'end', => @_buffer.end()
 
   # User date model
-  model: (template, model) ->
+  model: (models) ->
+    return @handle (-> app.model models, selname), models: models
     # user template
     if (typeof template is 'object') and (template isnt null)
       model = template
@@ -185,14 +314,10 @@ module.exports = class Controller
       return if @query._key isnt 'script'
       # user template
       if typeof template is 'function'
-        @handle (-> func model), func: template, model: model
+        @handle (-> func model, selname), func: template, model: model
       # template library
       else
-        switch template
-          when 'base' #, ... more templates
-            @handle (-> app.core[key] model), key: template, model: model
-          # default
-          else @handle (-> app.core['base'] model), model: model
+        @handle (-> app.model model, selname), key: template, model: model
 
   # Respond client
   do: (req, @_buffer) ->
@@ -233,7 +358,7 @@ module.exports = class Controller
             switch @query._key
               when 'script'
                 @set "Content-Type": "text/javascript"
-                @write "app.callers['#{@query.selector}']=function(){#{@_script}};"
+                @write "app.callers['#{@query.selector}']=function(selname){#{@_script}};"
               when 'data'
                 @set "Content-Type": "application/json"
                 @write JSON.stringify @data

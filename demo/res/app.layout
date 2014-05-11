@@ -1,58 +1,94 @@
 <div class="container">
   <div class="row clearfix">
     <div class="col-md-12 column">
-      <img alt="450x377" src="/logo.jpg" class="img-rounded" />
-    </div>
-  </div>
-  <div class="row clearfix">
-    <div class="col-md-12 column">
-      <div class="page-header">
-        <h1 id="message">
-          Hello world!
-        </h1>
-      </div>
-    </div>
-  </div>
-  <div class="row clearfix">
-    <div class="col-md-8 column">
-      <div class="form-horizontal" role="form">
-        <div class="form-group">
-           <label for="username" class="col-sm-2 control-label">Fullname</label>
-          <div class="col-sm-10">
-            <input type="text" class="form-control" id="username" />
+      <div class="tabbable" id="tabs-781303">
+        <ul class="nav nav-tabs">
+          <li class="active">
+            <a href="#panel-205608" data-toggle="tab">Welcome</a>
+          </li>
+          <li>
+            <a href="#panel-652875" data-toggle="tab">List</a>
+          </li>
+        </ul>
+        <div class="tab-content">
+          <div class="tab-pane active" id="panel-205608">
+            <div class="row clearfix">
+              <div class="col-md-12 column">
+                <div class="page-header">
+                  <h1 id="message">
+                    Hello World!
+                  </h1>
+                </div>
+              </div>
+            </div>
+            <div class="row clearfix">
+              <div class="col-md-6 column">
+                <div class="form-horizontal">
+                  <div class="form-group">
+                     <label for="username" class="col-sm-2 control-label">Fullname</label>
+                    <div class="col-sm-10">
+                      <input type="text" class="form-control" id="username" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3 column">
+                <button type="button" class="btn btn-primary btn-block" onclick="selector('helloClick')">Say hello!</button>
+              </div>
+              <div class="col-md-3 column">
+                <a id="modal-767828" href="#modal-container-767828" role="button" class="btn btn-success btn-block" data-toggle="modal" onclick="selector('timeClick')">Get server time</a>
+                <div class="modal fade" id="modal-container-767828" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+                  <div class="modal-dialog">
+                    <div class="modal-content">
+                      <div class="modal-header">
+                         <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+                        <h4 class="modal-title" id="myModalLabel">
+                          Server Time
+                        </h4>
+                      </div>
+                      <div class="modal-body" id="time">
+                        ...
+                      </div>
+                      <div class="modal-footer">
+                         <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                      </div>
+                    </div>
+                  </div>  
+                </div>
+              </div>
+            </div>
+            <div class="row clearfix">
+              <div class="col-md-12 column">
+                <img alt="450x377" src="/logo.jpg" class="img-rounded" />
+              </div>
+            </div>
+          </div>
+          <div class="tab-pane" id="panel-652875">
+            <div class="row clearfix">
+              <div class="col-md-12 column">
+                <div class="page-header">
+                  <h1 id="message">
+                    Data Model: list and item <small id="listState"></small>
+                  </h1>
+                </div>
+              </div>
+            </div>
+            <div class="row clearfix">
+              <div class="col-md-8 column">
+                <div class="list-group" id="listGroup" onload="selector('listLoad')">
+                  <a class="list-group-item" onclick="selector('itemClick')">
+                    <h4 class="list-group-item-heading" id="title"></h4>
+                    <p class="list-group-item-text" id="text">...</p>
+                  </a>
+                </div>
+              </div>
+              <div class="col-md-4 column">
+                 <button type="button" class="btn btn-block btn-primary" onclick="selector('itemAdd')">Add</button> <button type="button" class="btn btn-block btn-primary" onclick="selector('itemActive')">Active</button> <button type="button" class="btn btn-warning btn-block" id="insertItem" style="display: none" onclick="selector('itemInsert')">Insert</button> <button type="button" class="btn btn-block btn-danger" id="deleteItem" style="display: none" onclick="selector('itemRemove')">Delete</button> <button type="button" class="btn btn-block" id="cancelItem" style="display: none" onclick="selector('listBlur')">Cancel</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-    <div class="col-md-4 column">
-      <button type="button" class="btn btn-primary btn-block" onclick="selector('helloClick')">Say hello!</button>
-    </div>
-  </div>
-  <div class="row clearfix">
-    <div class="col-md-12 column">
-       <a id="modal-767828" href="#modal-container-767828" role="button" class="btn btn-success btn-block" data-toggle="modal" onclick="selector('timeClick')">Get server time</a>
-      
-      <div class="modal fade" id="modal-container-767828" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-          <div class="modal-content">
-            <div class="modal-header">
-               <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
-              <h4 class="modal-title" id="myModalLabel">
-                Server time
-              </h4>
-            </div>
-            <div class="modal-body" id="time">
-              ...
-            </div>
-            <div class="modal-footer">
-               <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-            </div>
-          </div>
-          
-        </div>
-        
-      </div>
-      
     </div>
   </div>
 </div>
