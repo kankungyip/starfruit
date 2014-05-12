@@ -60,7 +60,7 @@ https.createServer(options, app).listen(9090);
 ### Dynamic controller
 For controlling the flow of the application, which handles the events and to respond. "Events" includes changing the user's behavior and data model.
 
-All dynamic files (`.js`) in `MyProject/lib` folder, CoffeeScript source files (`.coffee`) in `MyProject/src` folder, resource files (`.html`) in `MyProject/res` folder.
+All dynamic files (`.js`) in `MyProject/lib` folder, CoffeeScript source files (`.coffee`) in `MyProject/src` folder, resource files (`.layout`) in `MyProject/res` folder.
 
 ```js
 // app.js
@@ -70,12 +70,10 @@ var fs = require('fs')
 
 module.exports = app = new sf.Controller();
 
-app.render = function() {
+app.init = function() {
   $ = this;
-  $.domain(function() {
-    $.set({ "Content-Type": "text/html;charset=utf-8" });
-    $.write(fs.createReadStream('res/app.html'));
-  });
+  $.title = 'Starfruit';
+  $.layout = 'res/app.layout';
 };
 
 app.timeClick = function() {
@@ -112,10 +110,9 @@ fs = require 'fs'
 {Controller} = require 'starfruit'
 
 module.exports = class App extends Controller
-  render: ->
-    @domain =>
-      @set "Content-Type": "text/html;charset=utf-8"
-      @write fs.createReadStream 'res/app.html'
+  init: ->
+    @title = 'Starfruit'
+    @layout = 'res/app.layout'
 
   timeClick: ->
     @model
@@ -132,27 +129,18 @@ module.exports = class App extends Controller
     @data.message = "hello #{@data.username}, welcome to starfruit world." if @data.username
 ```
 
-`app.html` contents:
+`app.layout` contents:
 
 ```html
-<html>
-  <head>
-    <title>Demo</title>
-    <script src="http://cdn.bootcss.com/jquery/2.1.0/jquery.min.js"></script>
-    <script src="/?script"></script>
-  <head>
-  <body>
-    <p><img src="/logo.jpg" /></p>
-    <p>Server time: <span style="color:red" id="time">?</span>
-      <input type="button" value="Get" onclick="app.selector('timeClick')" />
-    </p>
-    <p>Your name:
-      <input id="username" type="text" />
-      <input type="button" value="Hello" onclick="app.selector('helloClick')" />
-      <p id="message"></p>
-    </p>
-  </body>
-</html>
+<p><img src="/logo.jpg" /></p>
+<p>Server time: <span style="color:red" id="time">...</span>
+  <input type="button" value="Get" onclick="selector('timeClick')" />
+</p>
+<p>Your name:
+  <input id="username" type="text" />
+  <input type="button" value="Hello" onclick="selector('helloClick')" />
+  <p id="message"></p>
+</p>
 ```
 
 ### Customized server status code page
@@ -196,9 +184,11 @@ Use `_<status code>.html` file to customize the server status code page, such as
         - [`controller.set (headers)`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#set_headers)
         - [`controller.write (chunk, [encoding])`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#write_chunk_encoding)
         - [`controller.write (readStream, [encoding])`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#write_readstream_encoding)
-        - [`controller.model (model)`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#model_model)
-        - [`controller.model (template, model)`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#model_template_model)
-        - [`controller.model (callback, model)`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#model_callback_model)
+        - [`controller.model (models)`](https://github.com/kankungyip/starfruit/wiki/API:-Controller#model_models)
+    + [Data Model](https://github.com/kankungyip/starfruit/wiki/API:-Controller#datamodel)
+        - [Base](https://github.com/kankungyip/starfruit/wiki/API:-Controller#base)
+        - [List and Item](https://github.com/kankungyip/starfruit/wiki/API:-Controller#listitem)
+        - [Advanced](https://github.com/kankungyip/starfruit/wiki/API:-Controller#advanced)
     + [Events](https://github.com/kankungyip/starfruit/wiki/API:-Controller#events)
 
 ## Histroy

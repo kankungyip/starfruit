@@ -1,5 +1,15 @@
 [中文版本](https://github.com/kankungyip/starfruit/wiki/%E6%9B%B4%E6%96%B0%E8%AE%B0%E5%BD%95).
 
+## 0.2.3
+Refactoring:
+
+* Data model
+
+Added:
+
++ List and item data model
++ The default layout rendering Bootstrap
+
 ## 0.2.2
 Changed:
 
