@@ -29,14 +29,13 @@ Function::script = (argv) ->
       when 'object' then value += JSON.stringify val
       else value += val.toString()
     env += "var #{key}=#{value};"
-  return "(function(){#{env}(#{@toString()})()})();"
+  return "#{env}(#{@toString()})();"
 
 # Application script
 application = ->
   # application object
   app = window.app = {}
   app.callers = {}
-  app.model = {}
 
   # application events
   app.selector = window.selector = (selname) ->
@@ -46,7 +45,7 @@ application = ->
     .done -> app.callers[selname](selname) if typeof app.callers[selname] is 'function'
 
   # get element value or attrible
-  getValue = (elem, name) ->
+  getValue = app.getValue = (elem, name) ->
     switch name.toString().toLowerCase()
       when 'text' then elem.text()
       when 'html' then elem.html()
@@ -54,7 +53,7 @@ application = ->
       else elem.attr name
 
   # set element value or attrible
-  setValue = (elem, name, value) ->
+  setValue = app.setValue = (elem, name, value) ->
     switch name.toString().toLowerCase()
       when 'text' then elem.text value
       when 'html' then elem.html value
@@ -62,40 +61,45 @@ application = ->
       else elem.attr name, value
 
   # data model
-  model = app.model = (models, selname) ->
+  models = app.models = (model, selname) ->
     # getting data
     get = ->
       data = {}
-      _get = (sets, root) ->
+      _get = (sets) ->
         sets._selname = selname
-        switch sets.base
-          when 'list' then app.model.list.get sets, root
-          else app.model.base.get sets, root
-      for name, sets of models
-        if (typeof sets isnt 'object') or $.isArray sets
-          data = _get models, $('html')
+        sets.base ?= 'base'
+        if (models[sets.base]?) and (typeof models[sets.base].get is 'function')
+          models[sets.base].get sets
+        else models.base.get sets, $('html')
+      for name, sets of model
+        if (typeof sets is 'string') or $.isArray sets
+          data = _get model
           break
-        data[name] = _get sets, $('html')
+        data[name] = _get sets
       JSON.stringify data
+
     # setting data
     set = (data) ->
-      _set = (sets, data, root) ->
+      _set = (sets, data) ->
         sets._selname = selname
-        switch sets.base
-          when 'list' then app.model.list.set sets, data, root
-          else app.model.base.set sets, data, root
-      for name, sets of models
-        if (typeof sets isnt 'object') or $.isArray sets
-          _set models, data, $('html')
+        sets.base ?= 'base'
+        if (models[sets.base]?) and (typeof models[sets.base].get is 'function')
+          models[sets.base].set sets, data
+        else models.base.set sets, data, $('html')
+      for name, sets of model
+        if (typeof sets is 'string') or $.isArray sets
+          _set model, data
           break
-        _set sets, data[name], $('html')
+        _set sets, data[name]
+
     # post event
     $.post "#{location.pathname}?_id=event&_key=data&selector=#{selname}",
       get(), set, 'json'
 
   # base data model
-  model.base =
+  models.base =
     get: (sets, root) ->
+      root ?= $('html')
       data = {}
       sets = sets.entry if sets.entry
       for id, attrs of sets
@@ -106,6 +110,7 @@ application = ->
       return data
 
     set: (sets, data, root) ->
+      root ?= $('html')
       sets = sets.entry if sets.entry
       for id, attrs of sets
         elem = root.find '#' + id
@@ -114,7 +119,7 @@ application = ->
         else setValue elem, attr, data[id][attr] for attr in attrs
 
   # list data model
-  model.list =
+  models.list =
     actived: (sets) ->
       root = $ '#' + sets.root
       temp = "[style*='#{sets.active.style}']"
@@ -138,19 +143,20 @@ application = ->
 
     get: (sets) ->
       data = {}
+      actived = models.list.actived sets
       switch sets.method.toLowerCase()
         when 'remove'
-          actived = model.list.actived sets
-          data = model.base.get sets.entry, actived if sets.entry
+          data = models.base.get sets.entry, actived
           data._id = actived.attr 'id'
         when 'active'
-          target = model.list.target sets
-          data = model.base.get sets.entry, target
+          target = actived
+          target = models.list.target sets unless sets.active.index? and actived.length > 0
+          data = models.base.get sets.entry, target
           data._id = target.attr 'id'
       return data
 
     set: (sets, data) ->
-      actived = model.list.actived sets
+      actived = models.list.actived sets
       method = sets.method.toLowerCase()
       switch method
         when 'add', 'insert'
@@ -171,11 +177,12 @@ application = ->
             if (actived.index() < 0) or (method is 'add') then root.append entry
             else entry.insertBefore actived
           unless template.attr('id') then template.remove()
+
         when 'active'
           return if sets.active.index? and actived.length > 0
           root = $ '#' + sets.root
-          target = model.list.target sets
-          model.base.set sets, data, target
+          target = models.list.target sets
+          models.base.set sets, data, target
           # active style
           if sets.active.class
             root.children().removeClass sets.active.class
@@ -186,6 +193,7 @@ application = ->
             root.children().attr 'style', style
             style = if target.attr 'style' then target.attr 'style' else ''
             target.attr 'style', "#{style};#{sets.active.style};"
+
         when 'blur', 'remove'
           root = $ '#' + sets.root
           if sets.active.class
@@ -195,7 +203,7 @@ application = ->
             style = if template.attr 'style' then template.attr 'style' else ''
             root.children().attr 'style', style
           # remove actived item
-          actived.remove() if (method is 'remove') and (actived.index() > -1 ) 
+          actived.remove() if (method is 'remove') and (actived.index() > -1)
 
   # getting user event
   window.constructor::__defineGetter__ 'event', ->
@@ -304,20 +312,19 @@ module.exports = class Controller
 
   # User date model
   model: (models) ->
-    return @handle (-> app.model models, selname), models: models
-    # user template
-    if (typeof template is 'object') and (template isnt null)
-      model = template
-      template = 'base'
-    # data model
-    if (typeof model is 'object') and (model isnt null) and (!util.isArray model)
-      return if @query._key isnt 'script'
-      # user template
-      if typeof template is 'function'
-        @handle (-> func model, selname), func: template, model: model
-      # template library
-      else
-        @handle (-> app.model model, selname), key: template, model: model
+    return if @data
+    # custom data model stored method
+    stored = (sets, name) =>
+      if sets.base and (sets.base.get or sets.base.set)
+        name = "#{name}#{@uid()}"
+        base = ''
+        base += "app.models.#{name}.#{key}=#{func.toString()};" for key, func of sets.base
+        @_script += "app.models.#{name}={};#{base}"
+        sets.base = name
+    if models.base then stored models, 'func'
+    else stored sets, name for name, sets of models
+    # send data model to client
+    @handle (-> app.models models, selname), models: models
 
   # Respond client
   do: (req, @_buffer) ->
