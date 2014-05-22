@@ -39,10 +39,33 @@ application = ->
 
   # application events
   app.selector = window.selector = (selname) ->
+    url = "#{location.pathname}?selector=#{selname}"
     window._event = event
-    return app.callers[selname](selname) if typeof app.callers[selname] is 'function'
-    $.getScript "#{location.pathname}?_id=event&_key=script&selector=#{selname}"
-    .done -> app.callers[selname](selname) if typeof app.callers[selname] is 'function'
+    target = $ event.target
+    root = target.parents "[onload*='controller']:first"
+    if root.length > 0
+      tmp = /[\'\"]+(\w*)[\'\"]+/.exec root.attr 'onload'
+      ctlname = tmp[1].toString().trim() if tmp and tmp.length > 1
+      url += "&controller=#{ctlname}" if ctlname
+    return app.callers[selname](selname, ctlname) if typeof app.callers[selname] is 'function'
+    $.getScript url
+    .done -> app.callers[selname](selname, ctlname) if typeof app.callers[selname] is 'function'
+
+  # application child-controller
+  app.controller = window.controller = (ctlname) ->
+    target = $ "[onload*='controller'][onload*='#{ctlname}']"
+    $.get "#{location.pathname}?controller=#{ctlname}"
+    .done (data) ->
+      target.html data
+      target.find('[onload]').load()
+
+  # application child-layout
+  app.layout = window.layout = (layname) ->
+    target = $ "[onload*='layout'][onload*='#{layname}']"
+    $.get "#{location.pathname}?layout=#{layname}"
+    .done (data) ->
+      target.html data
+      target.find('[onload]').load()
 
   # get element value or attrible
   getValue = app.getValue = (elem, name) ->
@@ -61,7 +84,7 @@ application = ->
       else elem.attr name, value
 
   # data model
-  models = app.models = (model, selname) ->
+  models = app.models = (model, selname, ctlname) ->
     # getting data
     get = ->
       data = {}
@@ -93,8 +116,9 @@ application = ->
         _set sets, data[name]
 
     # post event
-    $.post "#{location.pathname}?_id=event&_key=data&selector=#{selname}",
-      get(), set, 'json'
+    url = "#{location.pathname}?selector=#{selname}"
+    url += "&controller=#{ctlname}" if ctlname
+    $.post url, get(), set, 'json'
 
   # base data model
   models.base =
@@ -222,12 +246,10 @@ module.exports = class Controller
 
   # Constructor
   constructor: ->
-    # sandbox runtime
     @_domain = domain.create()
     @_domain.on 'error', (err) =>
       @_finish = null
       @_error? err
-    # application's event callback
     @_script = ''
 
   # Unique ID
@@ -264,17 +286,19 @@ module.exports = class Controller
           <link rel=\"shortcut icon\" href=\"/favicon.png\">
         </head>
         <body>
-          %s
+          <!-- Body contents -->
+          <div class=\"container\">%s</div>
 
           <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
           <script src=\"http://cdn.bootcss.com/jquery/1.10.2/jquery.min.js\"></script>
           <!-- Include all compiled plugins (below), or include individual files as needed -->
           <script src=\"http://cdn.bootcss.com/twitter-bootstrap/3.0.3/js/bootstrap.min.js\"></script>
-          <!-- Starfruit\'s application -->
+          <!-- Application's JavaScript -->
           <script src=\"%s?script\"></script>
         </body>
       </html>"
-    layout = fs.readFileSync 'res/' + @layout
+    layout = fs.readFileSync 'res/' + @layout if typeof @layout is 'string'
+    layout = (fs.readFileSync 'res/' + item for item in @layout) if util.isArray @layout
     @set "Content-Type": "text/html;charset=utf-8"
     @write util.format template, @title, layout, @_pathname
 
@@ -297,7 +321,7 @@ module.exports = class Controller
   error: (callback) ->
     if typeof callback isnt 'function'
       throw new TypeError typeof(callback) + ' is not a function'
-    @_error = callback  
+    @_error = callback
 
   # Set headers
   set: (headers) -> @_buffer.writeHead 200, headers
@@ -324,7 +348,7 @@ module.exports = class Controller
     if models.base then stored models, 'func'
     else stored sets, name for name, sets of models
     # send data model to client
-    @handle (-> app.models models, selname), models: models
+    @handle (-> app.models models, selname, ctlname), models: models
 
   # Respond client
   do: (req, @_buffer) ->
@@ -339,10 +363,26 @@ module.exports = class Controller
     @_buffer.removeAllListeners 'error'
     @_buffer.on 'error', (err) => @_error? err
 
+    # load child-controller
+    load = (name) =>
+      dynamic = path.join process.cwd(), @server.dynamic, name
+      dynamicfile = dynamic
+      extname = path.extname dynamicfile
+      dynamicfile = dynamicfile + '.js' if extname.length < 1
+      dynamicfile = path.join dynamic, @server.default + '.js' unless fs.existsSync dynamicfile
+      if fs.existsSync dynamicfile
+        controller = require dynamicfile
+        controller = new controller() if typeof controller is 'function'
+        controller.server = @server
+        error = @_error
+        controller.error (err) -> error? err
+        controller.init?()
+      return controller
+
     # render content
     if !@query.raw or @query.raw.length < 1
-      @set "Content-Type": "text/plain"
       @_autoend = true
+      @set "Content-Type": "text/plain"
       @render()
 
     # application content
@@ -351,25 +391,48 @@ module.exports = class Controller
       @set "Content-Type": "text/javascript"
       @write application.script()
 
-    # geting user post data
-    else
+    # application child-layout
+    else if typeof @query.layout is 'string'
+      @_autoend = true
+      @set "Content-Type": "text/html;charset=utf-8"
+      extname = path.extname @query.layout
+      layout = @query.layout + '.layout' if extname.length < 1
+      @write fs.readFileSync 'res/' + layout
+
+    # application child-controller
+    else if (typeof @query.controller is 'string') and (typeof @query.selector isnt 'string')
+      @_autoend = true
+      controller = load @query.controller
+      if typeof controller is 'object'
+        @set "Content-Type": "text/html;charset=utf-8"
+        @write fs.readFileSync 'res/' + controller.layout
+
+    # application events
+    else if typeof @query.selector is 'string'
       @_autoend = false
       raw = ''
       req.on 'data', (chunk) -> raw += chunk
       req.on 'end', =>
-        @data = @parse raw if raw.length > 0
-        switch @query._id
-          when 'event'
-            selector = @query.selector
-            @[selector]() if typeof @[selector] is 'function'
-            switch @query._key
-              when 'script'
-                @set "Content-Type": "text/javascript"
-                @write "app.callers['#{@query.selector}']=function(selname){#{@_script}};"
-              when 'data'
-                @set "Content-Type": "application/json"
-                @write JSON.stringify @data
-        @_buffer.end()
+        controller = @
+        controller = load @query.controller if typeof @query.controller is 'string'
+        # geting user data
+        controller.data = controller.parse raw if raw.length > 0
+        # async data
+        if controller.data
+          controller.data.async = -> @_async = true
+          controller.data.end = =>
+            @set "Content-Type": "application/json"
+            @write JSON.stringify controller.data
+            @_buffer.end()
+        # call event
+        controller[@query.selector]() if typeof controller[@query.selector] is 'function'
+        # client event's script
+        unless controller.data
+          @set "Content-Type": "text/javascript"
+          @write "app.callers['#{@query.selector}']=function(selname, ctlname){#{controller._script}};"
+          @_buffer.end()
+        # data end
+        controller.data.end() if controller.data and controller.data._async isnt true
 
     # end respond
     @_buffer.end() if @_autoend is true

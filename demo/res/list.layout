@@ -1,0 +1,22 @@
+<div class="row clearfix">
+  <div class="col-md-12 column">
+    <div class="page-header">
+      <h1 id="message">
+        Data Model: list and item <small id="listState"></small>
+      </h1>
+    </div>
+  </div>
+</div>
+<div class="row clearfix">
+  <div class="col-md-8 column">
+    <div class="list-group" id="listGroup" onload="selector('listLoad')">
+      <a class="list-group-item" onclick="selector('itemClick')">
+        <h4 class="list-group-item-heading" id="title"></h4>
+        <p class="list-group-item-text" id="text">...</p>
+      </a>
+    </div>
+  </div>
+  <div class="col-md-4 column">
+     <button type="button" class="btn btn-block btn-primary" onclick="selector('itemAdd')">Add</button> <button type="button" class="btn btn-block btn-primary" onclick="selector('itemActive')">Active</button> <button type="button" class="btn btn-warning btn-block" id="insertItem" style="display: none" onclick="selector('itemInsert')">Insert</button> <button type="button" class="btn btn-block btn-danger" id="deleteItem" style="display: none" onclick="selector('itemRemove')">Delete</button> <button type="button" class="btn btn-block" id="cancelItem" style="display: none" onclick="selector('listBlur')">Cancel</button>
+  </div>
+</div>

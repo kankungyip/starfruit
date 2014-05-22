@@ -106,8 +106,10 @@ module.exports = class Server
     res.on 'finish', =>
       res.elapsedTime = new Date().getTime() - elapsedTime
       res.getHeader = (name) ->
-        reg = new RegExp("^#{name}:(.+)$", 'm')
-        reg.exec(res._header)[1].toString().trim()
+        reg = new RegExp "^#{name}:(.+)$", 'm'
+        tmp = reg.exec res._header
+        value = tmp[1].toString().trim() if tmp and tmp.length > 1
+        return value
       @log req, res
 
     # getting server status code page content
@@ -154,7 +156,8 @@ module.exports = class Server
         file = dynamicfile
         controller = require dynamicfile
         controller = new controller() if typeof controller is 'function'
-        controller.error (err) ->
+        controller.server = @
+        controller.error (err) =>
           status 500, 'Internal Server Error'
           @_error? err
         controller.init?()
